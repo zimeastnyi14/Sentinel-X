@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sentinel‑X v3 Ultimate Control Center</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- ───────────────────────────────────────────────────────────────────────── -->
+  <!-- Include Three.js for animated background -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <!-- Include Chart.js for threat-type chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- ───────────────────────────────────────────────────────────────────────── -->
+  <style>
+    /* ───────────────────────────────────────────────────────────────────────── */
+    /* Global reset and body styling */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+    body {
+      background: #000;
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+      color: #0ff;
+    }
+    /* Fullscreen Three.js canvas */
+    #bgCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+    }
+    /* Dashboard overlay container */
+    #dashboard {
+      position: absolute;
+      top: 5%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 380px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 2px solid #0ff;
+      border-radius: 10px;
+      padding: 15px;
+      z-index: 1;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 0 20px #0ff;
+    }
+    #dashboard h1 {
+      text-align: center;
+      font-size: 1.4rem;
+      margin-bottom: 10px;
+      text-shadow: 0 0 8px #0ff;
+    }
+    /* Toggle switch styling */
+    .control-item {
+      display: flex;
+      align-items: center;
+      margin: 8px 0;
+    }
+    .control-item input[type="checkbox"] {
+      display: none;
+    }
+    .slider {
+      position: relative;
+      width: 50px;
+      height: 24px;
+      background: rgba(0, 255, 255, 0.2);
+      border: 2px solid #0ff;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 2px;
+      top: 2px;
+      background: #000;
+      border-radius: 50%;
+      box-shadow: 0 0 5px #0ff;
+      transition: transform 0.3s, background 0.3s;
+    }
+    input:checked + .slider {
+      background: rgba(0, 255, 255, 0.4);
+      box-shadow: 0 0 12px #0ff;
+    }
+    input:checked + .slider::before {
+      transform: translateX(26px);
+      background: #111;
+      box-shadow: 0 0 5px #0ff, inset 0 0 5px #0ff;
+    }
+    .label-text {
+      margin-left: 10px;
+      font-size: 0.9rem;
+      color: #0ff;
+    }
+    /* Buttons */
+    .btn {
+      display: block;
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      background: transparent;
+      border: 2px solid #0ff;
+      border-radius: 5px;
+      color: #0ff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      text-align: center;
+    }
+    .btn:hover {
+      background: #0ff;
+      color: #000;
+    }
+    /* Chart container */
+    #chartContainer {
+      margin-top: 15px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid #0ff;
+      border-radius: 5px;
+      padding: 5px;
+    }
+    #threatChart {
+      width: 100%;
+      height: 150px;
+    }
+    /* Log area */
+    #logArea {
+      margin-top: 15px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid #0ff;
+      border-radius: 5px;
+      padding: 8px;
+      font-size: 0.8rem;
+      height: 120px;
+      overflow-y: auto;
+      line-height: 1.2;
+      color: #0ff;
+    }
+    #logArea div {
+      margin: 4px 0;
+    }
+    /* Responsive adjustments */
+    @media (max-width: 400px) {
+      #dashboard {
+        top: 2%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 95%;
+      }
+      #threatChart {
+        height: 120px;
+      }
+      .btn {
+        font-size: 0.9rem;
+      }
+      .label-text {
+        font-size: 0.85rem;
+      }
+    }
+    /* ───────────────────────────────────────────────────────────────────────── */
+  </style>
+</head>
+<body>
+  <!-- Animated Three.js background canvas -->
+  <canvas id="bgCanvas"></canvas>
+
+  <!-- Dashboard overlay -->
+  <div id="dashboard">
+    <h1>Sentinel‑X v3</h1>
+
+    <!-- Control toggles -->
+    <div class="control-item">
+      <input type="checkbox" id="firewallToggle" checked />
+      <label for="firewallToggle" class="slider"></label>
+      <span class="label-text">Firewall</span>
+    </div>
+    <div class="control-item">
+      <input type="checkbox" id="intrusionToggle" checked />
+      <label for="intrusionToggle" class="slider"></label>
+      <span class="label-text">Intrusion Detection</span>
+    </div>
+    <div class="control-item">
+      <input type="checkbox" id="autoPatchToggle" checked />
+      <label for="autoPatchToggle" class="slider"></label>
+      <span class="label-text">Auto-Patching</span>
+    </div>
+
+    <!-- Manual control buttons -->
+    <button class="btn" id="simulateBtn">🔍 Simulate Threat</button>
+    <button class="btn" id="clearLogsBtn">🧹 Clear Logs</button>
+
+    <!-- Threat-type chart -->
+    <div id="chartContainer">
+      <canvas id="threatChart"></canvas>
+    </div>
+
+    <!-- Live logging area -->
+    <div id="logArea">
+      <div>[LOG] System powering up...</div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────────────────────────── -->
+  <script>
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1) Three.js Animated Background
+    // ─────────────────────────────────────────────────────────────────────────
+    const bgCanvas = document.getElementById('bgCanvas');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ canvas: bgCanvas, antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    // Create a subtle particle field
+    const particlesCount = 500;
+    const positions = new Float32Array(particlesCount * 3);
+    for (let i = 0; i < particlesCount * 3; i++) {
+      positions[i] = (Math.random() - 0.5) * 50;
+    }
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const particleMaterial = new THREE.PointsMaterial({
+      color: 0x00ffcc,
+      size: 0.05,
+      transparent: true,
+      opacity: 0.6
+    });
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
+
+    // A rotating wireframe cube in center
+    const cubeGeom = new THREE.BoxGeometry(5, 5, 5);
+    const edges = new THREE.EdgesGeometry(cubeGeom);
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff00ff });
+    const wireCube = new THREE.LineSegments(edges, lineMaterial);
+    scene.add(wireCube);
+
+    camera.position.z = 15;
+
+    function animateBackground() {
+      requestAnimationFrame(animateBackground);
+      // Rotate particle field slowly
+      particles.rotation.y += 0.0005;
+      // Rotate wireframe cube
+      wireCube.rotation.x += 0.005;
+      wireCube.rotation.y += 0.007;
+      renderer.render(scene, camera);
+    }
+    animateBackground();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2) Core State & Utilities
+    // ─────────────────────────────────────────────────────────────────────────
+    let firewallEnabled = true;
+    let intrusionEnabled = true;
+    let autoPatchEnabled = true;
+
+    // Chart data
+    const threatTypes = ["Brute Force", "Malware", "Port Scan", "Phishing"];
+    const threatCounts = [0, 0, 0, 0];
+
+    // DOM references
+    const firewallToggle = document.getElementById('firewallToggle');
+    const intrusionToggle = document.getElementById('intrusionToggle');
+    const autoPatchToggle = document.getElementById('autoPatchToggle');
+    const simulateBtn = document.getElementById('simulateBtn');
+    const clearLogsBtn = document.getElementById('clearLogsBtn');
+    const logArea = document.getElementById('logArea');
+
+    function addLog(message, level = 'info') {
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.textContent = `[${time}] ${message}`;
+      if (level === 'alert') {
+        entry.style.color = '#ff5555';
+      } else if (level === 'success') {
+        entry.style.color = '#55ff55';
+      } else {
+        entry.style.color = '#0ff';
+      }
+      logArea.appendChild(entry);
+      logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3) Chart.js: Real-Time Threat-Type Chart
+    // ─────────────────────────────────────────────────────────────────────────
+    const ctx = document.getElementById('threatChart').getContext('2d');
+    const threatChart = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: threatTypes,
+        datasets: [{
+          data: threatCounts,
+          backgroundColor: [
+            'rgba(255, 99, 132, 0.7)',
+            'rgba(54, 162, 235, 0.7)',
+            'rgba(255, 206, 86, 0.7)',
+            'rgba(75, 192, 192, 0.7)'
+          ],
+          borderColor: [
+            'rgba(255, 99, 132, 1)',
+            'rgba(54, 162, 235, 1)',
+            'rgba(255, 206, 86, 1)',
+            'rgba(75, 192, 192, 1)'
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: '#0ff'
+            }
+          }
+        }
+      }
+    });
+
+    function updateChart(typeIndex) {
+      threatCounts[typeIndex]++;
+      threatChart.data.datasets[0].data = threatCounts;
+      threatChart.update();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4) Threat Simulation Logic
+    // ─────────────────────────────────────────────────────────────────────────
+    function generateRandomThreat() {
+      const idx = Math.floor(Math.random() * threatTypes.length);
+      return { type: threatTypes[idx], index: idx };
+    }
+
+    function handleThreat(threat) {
+      // Log detection attempt
+      addLog(`⚠️  Threat detected: ${threat.type}`, 'alert');
+      // Update chart
+      updateChart(threat.index);
+
+      if (firewallEnabled) {
+        // Firewall blocks it
+        setTimeout(() => {
+          addLog(`🛡️  Firewall blocked ${threat.type}`, 'success');
+        }, 800);
+      } else {
+        // Firewall is down: breach occurs
+        setTimeout(() => {
+          addLog(`💥 Breach! ${threat.type} succeeded`, 'alert');
+          if (autoPatchEnabled) {
+            // Auto-patching after breach
+            setTimeout(() => {
+              addLog(`🔧 Auto-patching to fix ${threat.type} vulnerability`, 'info');
+              setTimeout(() => {
+                addLog(`✅ Patch applied for ${threat.type}`, 'success');
+              }, 1000);
+            }, 1000);
+          }
+        }, 800);
+      }
+    }
+
+    // Periodic threat simulation if intrusion detection is enabled
+    let threatInterval = null;
+    function startThreatLoop() {
+      if (threatInterval) return;
+      threatInterval = setInterval(() => {
+        if (intrusionEnabled) {
+          const threat = generateRandomThreat();
+          handleThreat(threat);
+        }
+      }, 7000 + Math.random() * 5000); // every 7–12 seconds
+    }
+    function stopThreatLoop() {
+      clearInterval(threatInterval);
+      threatInterval = null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 5) Event Listeners for Controls
+    // ─────────────────────────────────────────────────────────────────────────
+    firewallToggle.addEventListener('change', (e) => {
+      firewallEnabled = e.target.checked;
+      addLog(`Firewall ${firewallEnabled ? 'ENABLED' : 'DISABLED'}`);
+    });
+
+    intrusionToggle.addEventListener('change', (e) => {
+      intrusionEnabled = e.target.checked;
+      addLog(`Intrusion Detection ${intrusionEnabled ? 'ENABLED' : 'DISABLED'}`);
+      if (intrusionEnabled) {
+        startThreatLoop();
+      } else {
+        stopThreatLoop();
+      }
+    });
+
+    autoPatchToggle.addEventListener('change', (e) => {
+      autoPatchEnabled = e.target.checked;
+      addLog(`Auto-Patching ${autoPatchEnabled ? 'ENABLED' : 'DISABLED'}`);
+    });
+
+    simulateBtn.addEventListener('click', () => {
+      const threat = generateRandomThreat();
+      handleThreat(threat);
+    });
+
+    clearLogsBtn.addEventListener('click', () => {
+      logArea.innerHTML = '';
+      addLog('[LOG] Logs cleared');
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 6) Initialization on Page Load
+    // ─────────────────────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      addLog('🚀 Sentinel‑X v3 initialized');
+      // Start the threat loop by default
+      startThreatLoop();
+    });
+    // ─────────────────────────────────────────────────────────────────────────
+  </script>
+</body>
+</html>
