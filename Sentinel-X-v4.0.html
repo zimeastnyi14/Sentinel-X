@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sentinel-X v3 UI Upgrade</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: black;
+      color: #00ffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    .dashboard {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: row;
+      backdrop-filter: blur(20px);
+      background: rgba(0, 255, 255, 0.05);
+      z-index: 2;
+    }
+
+    .sidebar {
+      width: 260px;
+      padding: 20px;
+      border-right: 1px solid #00ffff55;
+      background: rgba(0, 255, 255, 0.1);
+      backdrop-filter: blur(15px);
+    }
+
+    .sidebar h2 {
+      color: #00ffff;
+      margin-bottom: 20px;
+      text-shadow: 0 0 5px #00ffff;
+    }
+
+    .sidebar button {
+      background: rgba(0, 255, 255, 0.1);
+      border: 1px solid #00ffff88;
+      color: #00ffff;
+      padding: 10px;
+      margin-bottom: 12px;
+      width: 100%;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    .sidebar button:hover {
+      background: rgba(0, 255, 255, 0.2);
+    }
+
+    .main {
+      flex-grow: 1;
+      padding: 20px;
+      overflow-y: auto;
+      color: #ccffff;
+    }
+
+    .logs {
+      max-height: 75vh;
+      overflow-y: auto;
+      background-color: rgba(0, 255, 255, 0.05);
+      border: 1px solid #00ffff66;
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #00ffff33 inset;
+    }
+
+    .log-entry {
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .threat-meter {
+      margin: 20px 0;
+      padding: 10px;
+      background: rgba(255, 0, 0, 0.05);
+      border: 1px solid #ff0044aa;
+      border-radius: 8px;
+      color: #ff0044;
+      text-shadow: 0 0 4px red;
+      box-shadow: 0 0 10px #ff004422;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="holoCanvas"></canvas>
+  <div class="dashboard">
+    <div class="sidebar">
+      <h2>🛡️ Sentinel-X</h2>
+      <button onclick="triggerFakeScan()">Start Scan</button>
+      <button onclick="clearLogs()">Clear Logs</button>
+      <button>Firewall Rules</button>
+      <button>Auto Patching</button>
+      <button>Traffic Monitor</button>
+    </div>
+    <div class="main">
+      <h2>🧠 Live Threat Feed</h2>
+      <div class="threat-meter" id="threatMeter">Threat Level: NORMAL</div>
+      <div class="logs" id="logs"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script>
+    // Holographic background
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('holoCanvas'), alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const light = new THREE.PointLight(0x00ffff, 1);
+    light.position.set(50, 50, 50);
+    scene.add(light);
+
+    const geometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
+    const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true });
+    const shape = new THREE.Mesh(geometry, material);
+    scene.add(shape);
+
+    camera.position.z = 50;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      shape.rotation.x += 0.005;
+      shape.rotation.y += 0.005;
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Logs & Simulation
+    const logsContainer = document.getElementById("logs");
+    const threatMeter = document.getElementById("threatMeter");
+
+    function logThreat(message, severity = "normal") {
+      const entry = document.createElement("div");
+      entry.className = "log-entry";
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logsContainer.appendChild(entry);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+
+      if (severity === "high") {
+        threatMeter.textContent = "Threat Level: HIGH";
+        threatMeter.style.color = "#ff0044";
+        threatMeter.style.background = "rgba(255, 0, 0, 0.15)";
+        threatMeter.style.boxShadow = "0 0 20px #ff0044aa";
+      } else if (severity === "medium") {
+        threatMeter.textContent = "Threat Level: MEDIUM";
+        threatMeter.style.color = "#ffaa00";
+        threatMeter.style.background = "rgba(255, 170, 0, 0.1)";
+        threatMeter.style.boxShadow = "0 0 15px #ffaa00aa";
+      } else {
+        threatMeter.textContent = "Threat Level: NORMAL";
+        threatMeter.style.color = "#00ffcc";
+        threatMeter.style.background = "rgba(0, 255, 204, 0.1)";
+        threatMeter.style.boxShadow = "0 0 10px #00ffff55";
+      }
+    }
+
+    function triggerFakeScan() {
+      const fakeThreats = [
+        { msg: "Port scan detected from 192.168.1.23", level: "medium" },
+        { msg: "Suspicious packet on port 445", level: "medium" },
+        { msg: "Unauthorized login attempt blocked", level: "high" },
+        { msg: "Malicious script request intercepted", level: "high" },
+        { msg: "ICMP flood attempt blocked", level: "medium" }
+      ];
+
+      let count = 0;
+      const interval = setInterval(() => {
+        if (count >= fakeThreats.length) {
+          clearInterval(interval);
+          logThreat("System secure. No active threats.", "normal");
+          return;
+        }
+        const threat = fakeThreats[count];
+        logThreat(threat.msg, threat.level);
+        count++;
+      }, 1000);
+    }
+
+    function clearLogs() {
+      logsContainer.innerHTML = "";
+      logThreat("Logs cleared. System monitoring resumed.", "normal");
+    }
+  </script>
+</body>
+</html>
